@@ -32,23 +32,32 @@
   "Name of the buffer to which git-wip's output will be echoed")
 
 (defvar git-wip-path
-  (or
-   ;; Internal copy of git-wip; preferred because it will be
-   ;; version-matched
-   (expand-file-name
-    "../git-wip"
-    (file-name-directory
-     (or load-file-name
-         (locate-library "git-wip-mode"))))
-   ;; Look in $PATH and git exec-path
-   (let ((exec-path
-          (append
-           exec-path
-           (parse-colon-path
+  (let* ((lib-path
+	  (file-name-directory
+	   (or load-file-name (locate-library "git-wip-mode"))))
+	 (lib-parent-path
+	  (file-name-directory (directory-file-name lib-path)))
+	 (git-exec-path
+	  (parse-colon-path
             (replace-regexp-in-string
              "[ \t\n\r]+\\'" ""
-             (shell-command-to-string "git --exec-path"))))))
-     (executable-find "git-wip"))))
+             (shell-command-to-string "git --exec-path"))))
+	 (exec-path
+	  (append (list lib-path lib-parent-path)
+		  exec-path
+		  git-exec-path)))
+    (executable-find "git-wip"))
+  "Path to the git-wip executable.
+
+The default location is set by searching the following paths in
+order:
+
+- the library location of this file
+  (for installations from a package)
+- the parent directory of the library location if this file
+  (for installations from a git clone)
+- the current `exec-path'
+- the git exec-path")
 
 (defun git-wip-after-save ()
   (when (and (string= (vc-backend (buffer-file-name)) "Git")

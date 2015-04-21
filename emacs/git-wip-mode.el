@@ -31,6 +31,8 @@
 (defvar git-wip-buffer-name " *git-wip*"
   "Name of the buffer to which git-wip's output will be echoed")
 
+(defvar git-wip-vc-symbol 'Git)
+
 (defvar git-wip-path
   (let* ((lib-path
 	  (file-name-directory
@@ -59,9 +61,13 @@ order:
 - the current `exec-path'
 - the git exec-path")
 
+(defun git-wip-git-p ()
+  "Return t if git-wip can be run on the current buffer."
+  (and git-wip-path
+       (eq (vc-backend (buffer-file-name)) git-wip-vc-symbol)))
+
 (defun git-wip-after-save ()
-  (when (and (string= (vc-backend (buffer-file-name)) "Git")
-             git-wip-path)
+  (when (git-wip-git-p)
     (start-process "git-wip" git-wip-buffer-name
                    git-wip-path "save" (concat "WIP from emacs: "
                                                (file-name-nondirectory

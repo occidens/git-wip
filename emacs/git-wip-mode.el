@@ -32,6 +32,8 @@
   "Name of the buffer to which git-wip's output will be echoed")
 
 (defvar git-wip-vc-symbol 'Git)
+(defvar git-wip-debug nil)
+(defvar git-wip-file-name nil)
 
 (defvar git-wip-path
   (let* ((lib-path
@@ -66,15 +68,36 @@ order:
   (and git-wip-path
        (eq (vc-backend (buffer-file-name)) git-wip-vc-symbol)))
 
+(defun git-wip-when-done (proc &optional change)
+  ""
+  (when (eq 'exit (process-status proc))
+    (with-current-buffer (process-buffer proc)
+      (if (= 0 (process-exit-status proc))
+	  (prog1
+	      (message "Write and git-wip'd %s"
+		       git-wip-file-name)
+	    (unless git-wip-debug
+	      (kill-buffer (current-buffer))))
+	(message "Git-wip failed with exit code %d"
+		 (process-exit-status proc))))))
+
 (defun git-wip-after-save ()
   (when (git-wip-git-p)
-    (start-process "git-wip" git-wip-buffer-name
-                   git-wip-path "save" (concat "WIP from emacs: "
-                                               (file-name-nondirectory
-                                                buffer-file-name))
-                   "--editor" "--"
-                   (file-name-nondirectory buffer-file-name))
-    (message (concat "Wrote and git-wip'd " (buffer-file-name)))))
+    (let* ((buf (generate-new-buffer git-wip-buffer-name))
+	   (filename (buffer-file-name))
+	   (basename (file-name-nondirectory filename))
+	   (msg (format "WIP from emacs: %s" basename))
+	   (args (append
+		  `("save" ,msg)
+		  (unless git-wip-debug '("--editor"))
+		  `("--" ,basename)))
+	   (proc (let ((process-connection-type nil))
+		   (apply #'start-process
+			  "git-wip" buf git-wip-path args))))
+      (with-current-buffer buf
+	(set (make-local-variable 'git-wip-file-name) filename)
+	(set-process-sentinel proc #'git-wip-when-done)
+	proc))))
 
 ;;;###autoload
 (define-minor-mode git-wip-mode
